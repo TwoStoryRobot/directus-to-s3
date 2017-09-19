@@ -1,0 +1,27 @@
+#!/bin/bash
+# Perform the backup
+
+echo
+echo Backup triggered
+source /root/.envs
+
+START_DATE=$(date +%Y-%m-%dT%H:%M:%S)
+mkdir dump
+
+# Create mysql dump
+MYSQL_HOST_OPTIONS="-h $MYSQL_HOST -P 3306 -u$MYSQL_USER -p$MYSQL_PASSWORD"
+MYSQLDUMP_OPTIONS="--quote-names --quick --add-drop-table --add-locks --allow-keywords --disable-keys --extended-insert --single-transaction --create-options --comments --net_buffer_length=16384"
+mysqldump --all-databases $MYSQL_HOST_OPTIONS $MYSQLDUMP_OPTIONS > dump/dump.sql
+
+# Create copy of Directus media folder
+mkdir dump/uploads
+cp -r /media/uploads dump
+
+# Package up mysql dump and media files
+tar -zcf dump.tar.gz dump
+TAR_NAME=directus_dump_$START_DATE.tar.gz
+mv dump.tar.gz $TAR_NAME
+
+# Upload to S3
+aws s3 cp $TAR_NAME s3://$AWS_BUCKET/
+rm -r dump $TAR_NAME
